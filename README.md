@@ -23,3 +23,15 @@ Este proyecto implementa un pipeline industrializado de **Data Engineering** y *
 ├── reports/            # Gráficos y métricas finales (Generado por el modelo)
 ├── main.py             # Orquestador del pipeline
 └── Dockerfile          # Configuración del contenedor
+
+## ⚙️ Pipeline de Datos y Entrenamiento
+El sistema está diseñado para operar de forma autónoma siguiendo estas etapas:
+1. **Ingesta y Limpieza**: Procesamiento de **+500k registros** meteorológicos con imputación de datos faltantes (KNNImputer).
+2. **Ingeniería de Variables**: Análisis de multicolinealidad y cálculo de correlaciones estáticas/dinámicas (Pearson, Spearman, Kendall).
+3. **Entrenamiento Predictivo**: Ejecución de una ventana deslizante que entrena y valida el modelo para cada **Lead Time (0-23h)**, permitiendo un seguimiento real de la probabilidad de helada con un día de antelación.
+4. **Validación**: Implementación de validación cruzada para asegurar la estabilidad del modelo frente a la variabilidad climática.
+
+## 📦 Ejecución rápida (Docker)
+Para replicar el experimento completo con todas sus dependencias:
+```bash
+docker compose up --build
