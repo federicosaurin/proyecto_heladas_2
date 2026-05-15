@@ -1,0 +1,19 @@
+# Datos y resultados (pesados o temporales)
+data/raw/
+data/processed/
+reports/
+logs/
+
+# Python/Docker
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv/
+env/
+venv/
+.pytest_cache/
+
+# Sistema
+.DS_Store
+Thumbs.db

@@ -1,0 +1,37 @@
+# Configuración General del Proyecto
+project:
+  name: "Tesis Heladas Tardías"
+  author: "Federico Saurin"
+  version: "1.0.0"
+
+# Rutas de Archivos
+paths:
+  raw_data: "data/raw/dataframe.txt"
+  processed_output: "data/processed/dataframe_procesado.csv"
+  figures_dir: "reports/figures"
+  results_csv: "reports/results_metrics.csv"
+
+# Parámetros de Procesamiento
+preprocessing:
+  months_to_keep: [6, 7, 8, 9]  # Temporada de heladas
+  knn_neighbors: 1
+  # Columnas a eliminar según la estación (ejemplo para Regina)
+  columns_to_drop: ['dia', 'mes', 'anio'] 
+
+# Parámetros del Modelo ANN
+model:
+  target_column: 'LowTemp'
+  n_hours: 24              # Lead times a calcular
+  records_per_hour: 6      # Frecuencia de 10 min
+  n_splits: 5              # Validación cruzada
+  random_state: 42
+  
+  # Arquitecturas para comparar (lista de tuplas para capas ocultas)
+  architectures:
+    - [32]
+    - [64]
+    - [32, 16]
+  
+  hyperparameters:
+    alpha: 0.0001
+    max_iter: 1000

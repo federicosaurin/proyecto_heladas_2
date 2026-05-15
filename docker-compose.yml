@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  tesis-app:
+    build: .
+    container_name: saurin_tesis_container
+    volumes:
+      # Mapeamos las carpetas locales para persistir los resultados
+      - ./data:/app/data
+      - ./reports:/app/reports
+      - ./config:/app/config
+    # Esto permite que el contenedor se detenga una vez termine el proceso
+    restart: "no"
