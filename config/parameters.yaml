@@ -30,9 +30,12 @@ model:
   
   # Arquitecturas: Se probarán una tras otra automáticamente
   architectures:
+    - [8]
+    - [16]
     - [32]
     - [64]
-    - [32, 16]
+  
+  metrics_to_plot: ["F1", "Specificity", "Accuracy", "Precision", "Recall"]
   
   hyperparameters:
     alpha: 0.0001

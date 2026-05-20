@@ -75,3 +75,43 @@ class Visualizer:
         plt.savefig(path, dpi=300)
         plt.close()
         self.logger.info(f"Gráfico dinámico profesional guardado en: {path}")
+    
+    def plot_model_comparison(self, results_map, metric='F1'):
+        """
+        Grafica la comparativa de una métrica para distintas arquitecturas.
+        """
+        import matplotlib.pyplot as plt
+        import os
+
+        plt.figure(figsize=(12, 6))
+        
+        for arch_name, df_arch in results_map.items():
+            # Agrupamos por Lead Time para sacar el promedio de los Folds
+            # Si el model.py ahora usa 'Lead Time', aquí usamos lo mismo
+            stats = df_arch.groupby('Lead Time')[metric].agg(['mean', 'std']).reset_index()
+            
+            plt.plot(stats['Lead Time'], stats['mean'], marker='o', label=f"Arch: {arch_name}")
+            plt.fill_between(
+                stats['Lead Time'], 
+                stats['mean'] - stats['std'], 
+                stats['mean'] + stats['std'], 
+                alpha=0.2
+            )
+
+        plt.title(f'Comparativa de Rendimiento: {metric}')
+        plt.xlabel('Horas de Antelación (Lead Time)')
+        plt.ylabel(metric)
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.7)
+        
+        # EL TRUCO: Asegurar que la carpeta exista antes de guardar
+        output_path = os.path.join(self.output_dir, 'models', f'comparativa_{metric.lower()}.png')
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        try:
+            plt.savefig(output_path)
+            self.logger.info(f"Gráfico de {metric} guardado en: {output_path}")
+        except Exception as e:
+            self.logger.error(f"Error al guardar gráfico {metric}: {str(e)}")
+        finally:
+            plt.close()

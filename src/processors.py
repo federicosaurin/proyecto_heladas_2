@@ -33,8 +33,7 @@ class DataProcessor:
     def clean_station_data(self, df, station_type="regina"):
         self.logger.info(f"Aplicando selección de variables para: {station_type}")
         cols_to_keep = [
-            'TempOut', 'HiTemp', 'LowTemp', 'OutHum', 'Dew', 
-            'WindSpeed', 'WindChill', 'HeatIndex', 'Bar'
+            'HiTemp', 'LowTemp', 'OutHum', 'Dew', 'Bar', 'Hi SolarRad'
         ]
         available_cols = [c for c in cols_to_keep if c in df.columns]
         return df[available_cols].copy()

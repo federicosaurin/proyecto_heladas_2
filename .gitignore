@@ -17,3 +17,8 @@ venv/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Ignorar los gráficos generados para no pisarse entre corridas
+reports/figures/static/*.png
+reports/figures/dynamic/*.png
+reports/figures/models/*.png

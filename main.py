@@ -58,33 +58,28 @@ def main():
         # --- FASE 3: MODELADO ANN ---
         logger.info("--- Iniciando Fase de Entrenamiento ANN (Clasificación por Hora) ---")
         
-        # Ejecutamos el entrenamiento masivo (Arquitecturas x Horas x Folds)
-        # El método ya itera internamente sobre las arquitecturas del YAML
+        # ¡ACTIVADO! Ejecutamos el entrenamiento masivo con la nueva lógica balanceada y corregida
         df_results = predictor.train_hourly_models(df_clean)
         
-        # Guardamos el reporte maestro de métricas
+        # Guardamos el nuevo reporte maestro de métricas reales
         predictor.save_results(df_results, config['paths']['results_csv'])
         
         # --- FASE 4: VISUALIZACIÓN DE MODELOS ---
         logger.info("--- Generando comparativas de rendimiento ---")
         
-        # Preparamos un diccionario por arquitectura para que el visualizer compare
-        # (Separamos los resultados por el campo 'Arch' que añadimos en model.py)
-        results_map = {str(arch): df_results[df_results['Arch'] == str(arch)] 
-                       for arch in config['model']['architectures']}
+        # Agrupamos dinámicamente por lo que exista real en la columna 'Arch'
+        results_map = {str(name): group for name, group in df_results.groupby('Arch')}
         
-        # Si tu visualizer tiene estos métodos, graficarán las curvas de F1 y Especificidad
-        try:
-            visualizer.plot_model_comparison(results_map, metric='F1')
-            visualizer.plot_model_comparison(results_map, metric='Specificity')
-        except AttributeError:
-            logger.warning("El visualizador no tiene implementado plot_model_comparison. Saltando...")
+        # Graficamos todas las métricas de rendimiento reales
+        for metric_to_plot in ['F1', 'Specificity', 'Accuracy', 'Precision', 'Recall']:
+            try:
+                visualizer.plot_model_comparison(results_map, metric=metric_to_plot)
+            except Exception as plot_err:
+                logger.error(f"Error al graficar métrica {metric_to_plot}: {str(plot_err)}")
 
-        logger.info("--- Pipeline ejecutado con éxito total ---")
-        logger.info(f"Reporte final disponible en: {config['paths']['results_csv']}")
-
-    except Exception as e:
-        logger.error(f"Falla en el pipeline: {str(e)}", exc_info=True)
+    except Exception as pipeline_err:
+        # Cierre obligatorio del bloque try principal
+        logger.error(f"Error crítico en la ejecución del pipeline: {str(pipeline_err)}")
 
 if __name__ == "__main__":
     main()
