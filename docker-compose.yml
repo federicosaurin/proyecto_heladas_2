@@ -9,5 +9,6 @@ services:
       - ./data:/app/data
       - ./reports:/app/reports
       - ./config:/app/config
+      - ./models:/app/models  # <-- ¡ESTA ES LA LÍNEA MÁGICA QUE FALTABA!
     # Esto permite que el contenedor se detenga una vez termine el proceso
     restart: "no"

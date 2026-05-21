@@ -1,42 +1,46 @@
 # Configuración General del Proyecto
 project:
-  name: "Tesis Heladas Tardías"
+  name: "Plataforma AgroTech - Predicción de Heladas Tardías"
   author: "Federico Saurin"
-  version: "1.0.0"
+  version: "2.0.0"
 
-# Rutas de Archivos (Ajustadas para la estructura de carpetas del contenedor)
+# Rutas de Archivos (Mapeadas con los volúmenes del contenedor Docker)
 paths:
   raw_data: "data/raw/dataframe.txt"
   processed_output: "data/processed/dataframe_procesado.csv"
   figures_dir: "reports/figures"
   raw_results_dir: "reports/raw_results"
   results_csv: "reports/results_metrics.csv"
+  models_dir: "models"                  # <-- ¡NUEVO! Carpeta para los .joblib de producción
 
-# Parámetros de Procesamiento
+# Parámetros de Procesamiento y Clima
 preprocessing:
-  months_to_keep: [6, 7, 8, 9]  # Temporada de heladas: Jun, Jul, Ago, Sep
+  months_to_keep: [6, 7, 8, 9]  # Temporada crítica de heladas: Jun, Jul, Ago, Sep
   knn_neighbors: 1
   station_type: "regina"
-  # Columnas a eliminar manualmente si fuera necesario
   columns_to_drop: ['dia', 'mes', 'anio'] 
 
-# Parámetros del Modelo ANN
+# Parámetros del Modelo ANN Comercial
 model:
   target_column: 'LowTemp'
   n_hours: 24              # Lead times (0 a 23 horas de antelación)
-  records_per_hour: 6      # Cada registro representa 10 minutos
-  n_splits: 5              # Validación cruzada (StratifiedKFold)
+  records_per_hour: 6      # Frecuencia: 6 registros por hora (datos cada 10 min)
+  n_splits: 2 #5              # Validación cruzada académica (StratifiedKFold)
   random_state: 42
+  
+  # Persistencia del Producto
+  save_models: true        # <-- ¡NUEVO! Activa/Desactiva el guardado automático en disco
   
   # Arquitecturas: Se probarán una tras otra automáticamente
   architectures:
-    - [8]
-    - [16]
-    - [32]
-    - [64]
+    - [1]
+  #  - [16]
+  #  - [32]
+  #  - [64]
   
   metrics_to_plot: ["F1", "Specificity", "Accuracy", "Precision", "Recall"]
   
+  # Hiperparámetros de la Red Neuronal (MLPClassifier)
   hyperparameters:
     alpha: 0.0001
     max_iter: 1000

@@ -22,3 +22,6 @@ Thumbs.db
 reports/figures/static/*.png
 reports/figures/dynamic/*.png
 reports/figures/models/*.png
+
+# Modelos entrenados pesados (binarios)
+models/*.joblib
