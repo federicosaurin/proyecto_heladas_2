@@ -1,85 +1,65 @@
-import logging
 import os
 import yaml
-import pandas as pd
+import logging
+import pandas as pd  # 👈 AGREGADO ACÁ
+from sklearn.impute import KNNImputer
+
 from src.processors import DataProcessor
-from src.analyzer import DataAnalyzer
-from src.visualizer import Visualizer
+from src.database_manager import DatabaseManager
 from src.model import FrostPredictor
 
-# Configuración de logging profesional
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-def load_config():
-    with open("config/parameters.yaml", 'r') as file:
-        return yaml.safe_load(file)
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
 def main():
-    # 1. Carga de Configuración y Setup
-    config = load_config()
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    logger.info("=== Iniciando Plataforma Comercial AgroTech ===")
+
+    # 1. Cargar Configuración del YAML
+    config_path = os.path.join("config", "parameters.yaml")
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    # 2. ETAPA A: Procesar TXT crudo e ingestar en el Data Warehouse
+    processor = DataProcessor(config)
+    df_raw = processor.clean_raw_data(config['paths']['raw_data'])
     
-    # Inicializamos componentes pasando el diccionario de configuración pertinente
-    processor = DataProcessor()
+    db_manager = DatabaseManager(config)
+    # Volcamos todo en Postgres (mantiene nulos)
+    db_manager.populate_pipeline(df_raw, station_name='Villa Regina Centro')
+
+    # 3. ETAPA B: Extraer de la Base de Datos para Machine Learning
+    # De acá en adelante, tu pipeline ya no depende de archivos de texto locales!
+    df_db = db_manager.get_data_for_training(station_name='Villa Regina Centro')
+
+    if df_db.empty:
+        logger.error("No se encontraron datos en la base de datos para entrenar el modelo. Abortando.")
+        return
+
+    # 4. APLICAR KNNIMPUTER EN CALIENTE (Sobre los nulos extraídos de la BD)
+    logger.info("Aplicando algoritmo KNNImputer para rellenar nulos en memoria...")
+    knn_neighbors = config['preprocessing'].get('knn_neighbors', 1)
+    imputer = KNNImputer(n_neighbors=knn_neighbors)
     
-    analyzer = DataAnalyzer(
-        target_column=config['model']['target_column'],
-        output_raw_dir=config['paths']['raw_results_dir']
+    # Rellenamos nulos manteniendo la estructura de columnas y el índice
+    df_imputed = pd.DataFrame(
+        imputer.fit_transform(df_db),
+        columns=df_db.columns,
+        index=df_db.index
     )
-    
-    visualizer = Visualizer(output_dir=config['paths']['figures_dir'])
-    
-    # El predictor ahora toma todo el bloque 'config' para acceder a 'model' y 'paths'
+    logger.info("Imputación completada con éxito. Dataset listo para entrenamiento.")
+
+    # 5. ENTRENAMIENTO Y PERSISTENCIA DE MODELOS COMERCIALES
     predictor = FrostPredictor(config)
-    
-    try:
-        # --- FASE 1: PROCESAMIENTO ---
-        logger.info("--- Iniciando Fase de Procesamiento ---")
-        df_clean = processor.run_pipeline(
-            raw_path=config['paths']['raw_data'],
-            months=config['preprocessing']['months_to_keep'],
-            drops=config['preprocessing']['columns_to_drop']
-        )
-        
-        # Guardamos el procesado por si quieres auditarlo
-        os.makedirs(os.path.dirname(config['paths']['processed_output']), exist_ok=True)
-        df_clean.to_csv(config['paths']['processed_output'])
-        
-        # --- FASE 2: ANÁLISIS ESTADÍSTICO ---
-        logger.info("--- Iniciando Fase de Análisis Estadístico ---")
-        # Correlación estática
-        static_corr = analyzer.get_static_correlations(df_clean)
-        visualizer.plot_static_correlations(static_corr)
-        
-        # Correlación dinámica (Shifting 1-24) y guardado automático de CSVs crudos
-        dynamic_results = analyzer.calculate_dynamic_analysis(df_clean)
-        visualizer.plot_dynamic_results(dynamic_results)
+    metrics_report = predictor.train_hourly_models(df_imputed)
 
-        # --- FASE 3: MODELADO ANN ---
-        logger.info("--- Iniciando Fase de Entrenamiento ANN (Clasificación por Hora) ---")
-        
-        # ¡ACTIVADO! Ejecutamos el entrenamiento masivo con la nueva lógica balanceada y corregida
-        df_results = predictor.train_hourly_models(df_clean)
-        
-        # Guardamos el nuevo reporte maestro de métricas reales
-        predictor.save_results(df_results, config['paths']['results_csv'])
-        
-        # --- FASE 4: VISUALIZACIÓN DE MODELOS ---
-        logger.info("--- Generando comparativas de rendimiento ---")
-        
-        # Agrupamos dinámicamente por lo que exista real en la columna 'Arch'
-        results_map = {str(name): group for name, group in df_results.groupby('Arch')}
-        
-        # Graficamos todas las métricas de rendimiento reales
-        for metric_to_plot in ['F1', 'Specificity', 'Accuracy', 'Precision', 'Recall']:
-            try:
-                visualizer.plot_model_comparison(results_map, metric=metric_to_plot)
-            except Exception as plot_err:
-                logger.error(f"Error al graficar métrica {metric_to_plot}: {str(plot_err)}")
-
-    except Exception as pipeline_err:
-        # Cierre obligatorio del bloque try principal
-        logger.error(f"Error crítico en la ejecución del pipeline: {str(pipeline_err)}")
+    # 6. Guardar Reporte General de Métricas
+    predictor.save_results(metrics_report, config['paths']['results_csv'])
+    logger.info("=== Proceso Finalizado Exitosamente ===")
 
 if __name__ == "__main__":
     main()

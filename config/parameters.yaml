@@ -44,3 +44,11 @@ model:
   hyperparameters:
     alpha: 0.0001
     max_iter: 1000
+
+  # Configuración de Infraestructura de Datos Relacional
+database:
+  host: "tesis-db"
+  port: 5432
+  name: "agrotech_frost_db"
+  user: "saurin_admin"
+  password: "frost_password_2026"

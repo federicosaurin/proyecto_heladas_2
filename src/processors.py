@@ -1,76 +1,78 @@
 import pandas as pd
 import numpy as np
-from sklearn.impute import SimpleImputer
 import logging
 
 class DataProcessor:
-    def __init__(self, n_neighbors: int = 1):
-        self.imputer = SimpleImputer(strategy='median')
+    def __init__(self, config: dict):
+        prep_cfg = config.get('preprocessing', {})
+        self.station_type = prep_cfg.get('station_type', 'regina')
+        self.columns_to_drop = prep_cfg.get('columns_to_drop', ['dia', 'mes', 'anio'])
         self.logger = logging.getLogger(__name__)
 
-    def load_raw_data(self, file_path: str) -> pd.DataFrame:
-        self.logger.info(f"Cargando datos desde {file_path}")
-        return pd.read_csv(file_path, delimiter="\t", header=None, low_memory=False)
-
-    def format_headers(self, df: pd.DataFrame) -> pd.DataFrame:
-        df_clean = df.copy()
-        df_clean.iloc[0] = df_clean.iloc[0].fillna('')
-        df_clean.columns = [str(c).strip() for c in (df_clean.iloc[0] + df_clean.iloc[1])]
-        df_clean = df_clean.iloc[2:].reset_index(drop=True)
-        return df_clean
-
-    def process_dates(self, df: pd.DataFrame) -> pd.DataFrame:
-        df_dates = df.copy()
-        date_col = df_dates.columns[0]
-        df_dates[['dia', 'mes', 'anio']] = df_dates[date_col].str.split("/", expand=True)
-        df_dates = df_dates.drop(columns=[date_col])
-        return df_dates.apply(pd.to_numeric, errors='coerce')
-
-    def filter_by_season(self, df: pd.DataFrame, months_to_keep: list) -> pd.DataFrame:
-        self.logger.info(f"Filtrando meses críticos: {months_to_keep}")
-        return df[df['mes'].isin(months_to_keep)].copy()
-    
-    def clean_station_data(self, df, station_type="regina"):
-        self.logger.info(f"Aplicando selección de variables para: {station_type}")
-        cols_to_keep = [
-            'HiTemp', 'LowTemp', 'OutHum', 'Dew', 'Bar', 'Hi SolarRad'
-        ]
-        available_cols = [c for c in cols_to_keep if c in df.columns]
-        return df[available_cols].copy()
-
-    def impute_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("Iniciando imputación de datos faltantes...")
-        cols_with_data = df.columns[df.notna().any()].tolist()
-        if not cols_with_data: return df
-        df_to_impute = df[cols_with_data]
-        imputed_array = self.imputer.fit_transform(df_to_impute)
-        return pd.DataFrame(imputed_array, columns=cols_with_data)
-
-    def run_pipeline(self, raw_path: str, months: list, drops: list) -> pd.DataFrame:
+    def clean_raw_data(self, file_path: str) -> pd.DataFrame:
         """
-        Este es el método que Docker no estaba encontrando.
+        Lee el archivo usando la lógica original de combinación de cabeceras dobles por TAB,
+        extrae los componentes temporales y prepara el DataFrame.
         """
-        # 1. Carga y Headers
-        df = self.load_raw_data(raw_path)
-        df = self.format_headers(df)
-        df = self.process_dates(df)
+        self.logger.info(f"Cargando datos crudos desde {file_path}")
         
-        # 2. Filtro de meses
-        df = self.filter_by_season(df, months)
+        # 1. Volvemos al delimitador de tabulación nativo que usabas antes
+        # on_bad_lines='skip' es el escudo definitivo si alguna línea se deforma
+        df_raw = pd.read_csv(
+            file_path, 
+            delimiter="\t", 
+            header=None, 
+            low_memory=False, 
+            on_bad_lines='skip'
+        )
         
-        # 3. Selección de variables físicas (Limpia las 30+ sobrantes)
-        df = self.clean_station_data(df)
+        # 2. Tu lógica original para fusionar el encabezado doble
+        df_raw.iloc[0] = df_raw.iloc[0].fillna('')
+        df_raw.columns = [str(c).strip() for c in (df_raw.iloc[0].astype(str) + df_raw.iloc[1].astype(str))]
         
-        # 4. Asegurar numéricos y eliminar basura
-        df = df.apply(pd.to_numeric, errors='coerce')
+        # Cortamos las dos primeras filas de encabezado y reseteamos el índice
+        df = df_raw.iloc[2:].reset_index(drop=True)
         
-        # 5. Imputación
-        df = self.impute_data(df)
-        
-        # 6. Drop manual (opcional desde YAML)
-        if drops:
-            existing_drops = [c for c in drops if c in df.columns]
-            df = df.drop(columns=existing_drops)
+        self.logger.info(f"Columnas combinadas detectadas exitosamente: {list(df.columns[:5])}...")
 
-        self.logger.info(f"Pipeline completado. Columnas finales: {list(df.columns)}")
+        # 3. Procesar fechas basándonos en tus columnas combinadas
+        try:
+            # En tus logs vimos que las columnas se llaman exactamente "Date" y "Time"
+            datetime_str = df['Date'].astype(str).str.strip() + ' ' + df['Time'].astype(str).str.strip()
+            df['fecha'] = pd.to_datetime(datetime_str, format='%d/%m/%y %H:%M', errors='coerce')
+            
+            # Recreamos las columnas estructurales por si las usás en filtros
+            df['dia'] = df['fecha'].dt.day
+            df['mes'] = df['fecha'].dt.month
+            df['anio'] = df['fecha'].dt.year
+            
+        except Exception as e:
+            self.logger.error(f"Error al procesar el tiempo con las cabeceras unificadas: {e}")
+            raise e
+
+        # Limpieza de nulos temporales e indexación
+        df = df.dropna(subset=['fecha'])
+        df = df.set_index('fecha').sort_index()
+
+        # 4. Convertir a numérico y mapear variables físicas
+        for col in df.columns:
+            if col not in ['Date', 'Time']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Mapeo exacto según los nombres fusionados de tu WeatherLink
+        # "Hi" + "Temp" = "HiTemp", "Low" + "Temp" = "LowTemp", etc.
+        rename_dict = {
+            'HiTemp': 'temperature_max',
+            'LowTemp': 'temperature_min',
+            'OutHum': 'humidity',
+            'Dew': 'dew_point',
+            'Bar': 'pressure',
+            'HiSolarRad': 'solar_radiation_max',
+            'Rain': 'rain'
+        }
+        
+        df = df.rename(columns=lambda x: rename_dict.get(x, x))
+        df = df.replace([np.inf, -np.inf], np.nan)
+
+        self.logger.info(f"Estructura unificada con éxito. Registros procesados: {len(df)}")
         return df

@@ -1,14 +1,47 @@
 version: '3.8'
 
 services:
+  tesis-db:
+    image: postgres:15-alpine
+    container_name: saurin_postgres_container
+    restart: always
+    environment:
+      POSTGRES_USER: saurin_admin
+      POSTGRES_PASSWORD: frost_password_2026
+      POSTGRES_DB: agrotech_frost_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
+    healthcheck: # <-- Esto frena la app hasta que la DB esté 100% lista y con los seeds adentro
+      test: ["CMD-SHELL", "pg_isready -U saurin_admin -d agrotech_frost_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   tesis-app:
     build: .
     container_name: saurin_tesis_container
+    restart: "no"
     volumes:
-      # Mapeamos las carpetas locales para persistir los resultados
       - ./data:/app/data
       - ./reports:/app/reports
       - ./config:/app/config
-      - ./models:/app/models  # <-- ¡ESTA ES LA LÍNEA MÁGICA QUE FALTABA!
-    # Esto permite que el contenedor se detenga una vez termine el proceso
-    restart: "no"
+      - ./models:/app/models
+      - ./src:/app/src
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_HOST=tesis-db
+      - DB_PORT=5432
+      - DB_NAME=agrotech_frost_db
+      - DB_USER=saurin_admin
+      - DB_PASSWORD=frost_password_2026
+    depends_on:
+      tesis-db:
+        condition: service_healthy # <-- Espera al healthcheck exitoso
+    command: python main.py 
+
+volumes:
+  postgres_data:
