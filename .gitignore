@@ -1,10 +1,6 @@
-# Datos y resultados (pesados o temporales)
-data/raw/
-data/processed/
-reports/
-logs/
-
-# Python/Docker
+# ==========================================
+# Python / Entornos Virtuales
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -14,18 +10,45 @@ env/
 venv/
 .pytest_cache/
 
-# Base de datos persistida por Docker
+# ==========================================
+# Infraestructura y Base de Datos (Docker)
+# ==========================================
 .data/
 postgres_data/
 
-# Sistema
+# ==========================================
+# Datos Crudos e Intermedios (Locales)
+# ==========================================
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+logs/
+
+# ==========================================
+# Reportes, Gráficos y Resultados
+# ==========================================
+# Ignoramos los archivos generados pero MANTENEMOS las carpetas en GitHub
+reports/figures/static/*
+reports/figures/dynamic/*
+reports/figures/models/*
+reports/raw_results/*
+reports/results_metrics.csv
+
+# Excepciones para asegurar que GitHub cree las carpetas vacías
+!reports/figures/static/.gitkeep
+!reports/figures/dynamic/.gitkeep
+!reports/figures/models/.gitkeep
+!reports/raw_results/.gitkeep
+
+# ==========================================
+# Modelos Entrenados Binarios
+# ==========================================
+models/*.joblib
+models/comparativa_*.png
+
+# ==========================================
+# Sistema Operativo
+# ==========================================
 .DS_Store
 Thumbs.db
-
-# Ignorar los gráficos generados para no pisarse entre corridas
-reports/figures/static/*.png
-reports/figures/dynamic/*.png
-reports/figures/models/*.png
-
-# Modelos entrenados pesados (binarios)
-models/*.joblib
